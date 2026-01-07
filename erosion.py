@@ -93,16 +93,15 @@ masque_normalise = np.clip(masque_normalise * 1.4, 0, 1)
 plt.imsave('./results/masque.png', masque_normalise, cmap='gray')
 
 # B. Réduction des étoiles
-# On applique une ouverture morphologique (érosion puis dilatation)
-# pour réduire les étoiles sans affecter la nébuleuse
+# On applique une érosion pour réduire les étoiles
+# Selon le sujet : I_final = (M × I_erode) + ((1-M) × I_original)
 noyau_erosion = np.ones((5, 5), np.uint8)
 image_erodee_selective = cv.erode(image, noyau_erosion, iterations=1)
-image_ouverte_selective = cv.dilate(image_erodee_selective, noyau_erosion, iterations=1)
 
 # C. Combinaison avec l'image originale
 # On convertit en float pour les calculs
 image_float = image.astype(np.float32)
-image_ouverte_float = image_ouverte_selective.astype(np.float32)
+image_erodee_float = image_erodee_selective.astype(np.float32)
 
 # Adapter le masque aux dimensions de l'image (couleur ou noir et blanc)
 if image.ndim == 3:
@@ -110,8 +109,8 @@ if image.ndim == 3:
 else:
     masque_3d = masque_normalise
 
-# Formule de combinaison : I_final = M * I_erode + (1-M) * I_original
-image_finale = masque_3d * image_ouverte_float + (1 - masque_3d) * image_float
+# Formule de combinaison : I_final = (M × I_erode) + ((1-M) × I_original)
+image_finale = masque_3d * image_erodee_float + (1 - masque_3d) * image_float
 
 # Conversion et sauvegarde
 image_finale_uint8 = np.clip(image_finale, 0, 255).astype(np.uint8)
