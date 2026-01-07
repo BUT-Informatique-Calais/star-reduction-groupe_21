@@ -34,27 +34,30 @@ astro_project/
 │   ├── test_M31_linear.fits
 │   └── test_M31_raw.fits
 ├── results/                # Images de sortie
-│   ├── original.png
-│   └── eroded.png
+│   ├── original.png       # Image originale
+│   ├── eroded.png         # Phase 1 : après érosion
+│   ├── dilated.png        # Phase 1 : après dilatation (ouverture)
+│   ├── masque.png         # Phase 2 : masque d'étoiles
+│   ├── resultat.png       # Phase 2 : résultat final (brut)
+│   └── resultat_normal.png # Phase 2 : résultat final (normalisé)
 ├── requirements.txt
 └── README.md
 ```
 
 ## Utilisation
 
-### Phase 1 : Érosion simple
-
 ```bash
 python erosion.py
 ```
 
-Le script charge `HorseHead.fits`, applique une érosion et sauvegarde les résultats dans `results/`.
+Le script charge l'image FITS spécifiée (par défaut `test_M31_linear.fits`), applique les traitements des Phase 1 et Phase 2, et sauvegarde les résultats dans `results/`.
 
 ### Paramètres
 
 Dans `erosion.py`, vous pouvez modifier :
-- **Taille du kernel** : `kernel = np.ones((5,5), np.uint8)` (ligne 47)
-- **Nombre d'itérations** : `iterations=1` (ligne 49)
+- **Fichier FITS** : `fichier_fits = './examples/test_M31_linear.fits'` (ligne 7)
+- **Taille du kernel** : `noyau = np.ones((5,5), np.uint8)` (ligne 47)
+- **Nombre d'itérations** : `iterations=1` (ligne 50, 54)
 
 ## Fichiers de test
 
@@ -62,7 +65,15 @@ Dans `erosion.py`, vous pouvez modifier :
 - `test_M31_linear.fits` : Galaxie d'Andromède (couleur)
 - `test_M31_raw.fits` : Galaxie d'Andromède (couleur, brute)
 
-  ## Phase 1 : Observations et résultats
+## Phase 1 : Érosion et Dilatation globale
+
+### Principe
+
+La Phase 1 consiste à appliquer une **ouverture morphologique** (érosion suivie de dilatation) sur toute l'image :
+- **Érosion** : Réduit la taille des étoiles en remplaçant chaque pixel par le minimum de son voisinage
+- **Dilatation** : Restaure les structures étendues (nébuleuses) tout en conservant la réduction des étoiles
+
+Cette méthode simple permet de valider le concept mais présente des limitations importantes.
 
 ### Tests effectués
 
@@ -108,18 +119,76 @@ Nous avons testé l'érosion morphologique sur différentes images FITS avec plu
 
 ### Conclusion Phase 1
 
-L'érosion simple démontre la faisabilité de la réduction d'étoiles, mais elle n'est **pas adaptée pour un traitement scientifique** car elle altère l'intégrité des données de la nébuleuse.
+L'ouverture morphologique globale démontre la faisabilité de la réduction d'étoiles, mais elle n'est **pas adaptée pour un traitement scientifique** car elle altère l'intégrité des données de la nébuleuse.
 
 **Nécessité de la Phase 2** : Il est impératif de développer un algorithme sélectif qui :
 - Détecte uniquement les étoiles (masque binaire)
 - Applique l'érosion seulement sur les zones d'étoiles
 - Préserve intégralement les détails de la nébuleuse
 
+## Phase 2 : Réduction sélective avec masque d'étoiles
+
+### Principe
+
+La Phase 2 implémente un algorithme sélectif qui ne traite que les zones d'étoiles, préservant ainsi les détails de la nébuleuse.
+
+### Étape A : Création du masque d'étoiles
+
+1. **Conversion en niveaux de gris** : L'image est convertie en gris pour la détection
+2. **Seuillage adaptatif** : Utilisation d'un seuil basé sur le percentile (88%) pour détecter les pixels les plus brillants
+3. **Nettoyage morphologique** : Ouverture puis fermeture pour éliminer le bruit et boucher les petits trous
+4. **Dilatation** : 2 itérations pour couvrir toute l'étoile, y compris les halos
+5. **Flou gaussien** : Adoucit les transitions pour éviter les halos artificiels
+6. **Renforcement** : Le masque est multiplié par 1.4 pour un effet plus visible
+
+### Étape B : Réduction des étoiles
+
+Application d'une **ouverture morphologique** (érosion puis dilatation) uniquement sur les zones détectées comme étoiles :
+- Kernel de taille (5,5)
+- 1 itération d'érosion puis 1 itération de dilatation
+
+### Étape C : Combinaison avec l'image originale
+
+La formule de combinaison permet de mélanger intelligemment l'image érodée et l'image originale :
+
+```
+I_final = M × I_erode + (1-M) × I_original
+```
+
+Où :
+- `M` est le masque normalisé (entre 0 et 1)
+- `I_erode` est l'image après ouverture morphologique
+- `I_original` est l'image originale
+
+**Résultat** : Les étoiles sont réduites là où le masque est fort, tandis que la nébuleuse reste intacte.
+
+### Paramètres ajustables
+
+Dans `erosion.py`, vous pouvez modifier :
+- **Percentile du seuil** : `valeur_seuil = np.percentile(gris, 88)` (ligne 70) - Plus bas = plus d'étoiles détectées
+- **Itérations de dilatation du masque** : `iterations=2` (ligne 80) - Plus d'itérations = masque plus large
+- **Renforcement du masque** : `masque_normalise * 1.4` (ligne 87) - Plus élevé = effet plus fort
+- **Taille du kernel d'érosion** : `noyau_erosion = np.ones((5, 5), np.uint8)` (ligne 95)
+
+### Résultats Phase 2
+
+**Avantages** :
+- Réduction sélective des étoiles sans affecter la nébuleuse
+- Préservation des détails fins (filaments, piliers de poussière)
+- Pas d'artefacts majeurs sur les structures étendues
+- Méthode adaptative selon la luminosité des étoiles
+
+**Limitations observées** :
+- Quelques petits "trous" peuvent apparaître autour des étoiles très brillantes si les paramètres sont trop agressifs
+- Le masque peut parfois capturer des zones de nébuleuse très brillantes
+- Nécessite un ajustement des paramètres selon l'image
+
 ## État du projet
 
-- [x] Phase 1 : Érosion simple
-- [ ] Phase 2 - Étape A : Création du masque d'étoiles
-- [ ] Phase 2 - Étape B : Réduction localisée
+- [x] Phase 1 : Érosion et dilatation globale (ouverture morphologique)
+- [x] Phase 2 - Étape A : Création du masque d'étoiles
+- [x] Phase 2 - Étape B : Réduction localisée
+- [x] Phase 2 - Étape C : Combinaison avec l'image originale
 - [ ] Phase 3 : Prolongements (optionnel)
 
 ## Références
