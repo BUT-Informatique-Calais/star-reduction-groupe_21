@@ -37,7 +37,7 @@ if donnees.ndim == 3:  # image couleur
         image[:, :, i] = ((canal - canal.min()) /
                           (canal.max() - canal.min()) * 255).astype('uint8')
 
-    # opencv travaille en BGR
+    # opencv travaille en BGR au lieu de RGB
     image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
 
 else:
@@ -71,7 +71,8 @@ if image.ndim == 3:
 else:
     gris = image.copy()
 
-# seuil base sur la luminosite (testé avec plusieurs valeurs)
+# seuil base sur la luminosite
+# j'ai testé avec 90, 85, 88... 88 ça marche bien pour capturer assez d'étoiles
 valeur_seuil = np.percentile(gris, 88)
 _, masque_binaire = cv.threshold(gris, valeur_seuil, 255, cv.THRESH_BINARY)
 
@@ -83,6 +84,7 @@ masque_nettoye = cv.morphologyEx(masque_ouvert, cv.MORPH_CLOSE,
                                  noyau_nettoyage, iterations=1)
 
 # on dilate pour bien couvrir les halos
+# 2 itérations, 1 n'est pas suffisante
 masque_dilate = cv.dilate(masque_nettoye, noyau_nettoyage, iterations=2)
 
 # flou pour eviter les transitions trop dures
@@ -90,6 +92,7 @@ masque_floute = cv.GaussianBlur(masque_dilate.astype(np.float32),
                                 (9, 9), sigmaX=1.5, sigmaY=1.5)
 
 masque_normalise = masque_floute / 255.0
+# j'ai essayé avec 1.8 mais ça faisait des trous, 1.4 c'est mieux
 masque_normalise = np.clip(masque_normalise * 1.4, 0, 1)
 
 plt.imsave('./results/masque.png', masque_normalise, cmap='gray')
@@ -102,6 +105,7 @@ image_erodee_selective = cv.erode(image, noyau_erosion, iterations=1)
 # combinaison finale
 # ==================================================
 
+# on convertit en float pour les calculs
 image_float = image.astype(np.float32)
 image_erodee_float = image_erodee_selective.astype(np.float32)
 
@@ -110,7 +114,7 @@ if image.ndim == 3:
 else:
     masque_3d = masque_normalise
 
-# formule donnee dans le sujet
+# on applique la formule
 image_finale = masque_3d * image_erodee_float + (1 - masque_3d) * image_float
 
 image_finale_uint8 = np.clip(image_finale, 0, 255).astype(np.uint8)
