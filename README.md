@@ -269,7 +269,7 @@ Traite un seul fichier FITS avec l'algorithme de réduction d'étoiles :
   - Combinaison avec l'image originale
 - **Sauvegarde** : Enregistre l'image traitée dans le dossier de sortie
 
-#### `batch_process()`
+## Phase 3 : `batch_process()(optionnel)`
 
 Orchestre le traitement de tous les fichiers FITS d'un dossier :
 
@@ -293,15 +293,6 @@ Traite tous les fichiers FITS du dossier `./examples/` et sauvegarde les résult
 ```bash
 python batch_processing.py --input ./examples/ --output ./results/batch_output/
 ```
-
-**Options principales** :
-
-- `--input` ou `-i` : Dossier contenant les fichiers FITS (défaut: `./examples/`)
-- `--output` ou `-o` : Dossier de sortie (défaut: `./results/batch_output/`)
-- `--phase1` : Active la Phase 1 (érosion/dilatation globale) avant la Phase 2
-- `--kernel` ou `-k` : Taille du kernel d'érosion (défaut: `5`)
-- `--iterations` ou `-it` : Nombre d'itérations (défaut: `1`)
-- `--threshold` ou `-t` : Percentile pour le seuillage (défaut: `88`)
 
 #### Exemples d'utilisation
 
