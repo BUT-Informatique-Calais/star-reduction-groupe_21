@@ -29,7 +29,8 @@ pip install -r requirements.txt
 ```
 astro_project/
 ├── erosion.py              # Script principal
-├── comparator.py            # Comparateur Avant/Après (Phase 3 optionnelle)
+├── batch_processing.py     # Traitement en lot de plusieurs fichiers FITS
+├── comparator.py           # Comparateur Avant/Après (Phase 3 optionnelle)
 ├── examples/               # Fichiers FITS de test
 │   ├── HorseHead.fits
 │   ├── test_M31_linear.fits
@@ -42,7 +43,9 @@ astro_project/
 │   ├── resultat.png       # Phase 2 : résultat final (brut)
 │   ├── resultat_normal.png # Phase 2 : résultat final (normalisé)
 │   ├── comparison_animation_phase2.gif  # Phase 3 : animation de comparaison
-│   └── comparison_side_phase2.png       # Phase 3 : comparaison côte à côte
+│   ├── comparison_side_phase2.png       # Phase 3 : comparaison côte à côte
+│   └── batch_output/      # Résultats du batch processing
+│       ├── *_processed.png # Images traitées (une par fichier FITS)
 ├── requirements.txt
 └── README.md
 ```
@@ -236,6 +239,138 @@ Le comparateur détecte automatiquement les fichiers générés par `erosion.py`
 - Outil utile pour la documentation et les présentations
 - Génération automatique sans configuration supplémentaire
 
+## Batch Processing : Traitement en lot
+
+### Principe
+
+Le script `batch_processing.py` permet de traiter automatiquement **plusieurs fichiers FITS** en une seule exécution. Il utilise exactement le même algorithme que `erosion.py` (Phase 2) pour garantir la cohérence des résultats.
+
+### Fonctionnalités
+
+- **Traitement automatique** : Scanne un dossier et traite tous les fichiers `.fits` et `.FITS`
+- **Algorithme identique** : Utilise la même logique que `erosion.py` (Phase 2 : réduction sélective)
+- **Paramètres configurables** : Tous les paramètres sont ajustables via la ligne de commande
+- **Rapport détaillé** : Génère un fichier texte avec les statistiques de traitement
+- **Gestion d'erreurs** : Continue le traitement même si un fichier échoue
+
+### Structure du code
+
+Le script est organisé en deux fonctions principales :
+
+#### `process_single_fits()`
+
+Traite un seul fichier FITS avec l'algorithme de réduction d'étoiles :
+
+- **Chargement** : Ouvre le fichier FITS et gère les images couleur et monochrome
+- **Phase 1 optionnelle** : Peut appliquer l'érosion/dilatation globale avant la Phase 2
+- **Phase 2** : Applique la réduction sélective identique à `erosion.py`
+  - Création du masque d'étoiles (seuillage, nettoyage, flou gaussien)
+  - Érosion sélective des étoiles
+  - Combinaison avec l'image originale
+- **Sauvegarde** : Enregistre l'image traitée dans le dossier de sortie
+
+#### `batch_process()`
+
+Orchestre le traitement de tous les fichiers FITS d'un dossier :
+
+- **Découverte automatique** : Trouve tous les fichiers `.fits` et `.FITS` dans le dossier d'entrée
+- **Traitement séquentiel** : Traite chaque fichier un par un
+- **Suivi des résultats** : Compte les succès et les erreurs
+- **Génération de rapport** : Crée un fichier `batch_report.txt` avec les détails
+
+### Utilisation
+
+#### Commande de base
+
+```bash
+python batch_processing.py
+```
+
+Traite tous les fichiers FITS du dossier `./examples/` et sauvegarde les résultats dans `./results/batch_output/`.
+
+#### Options disponibles
+
+```bash
+python batch_processing.py --input ./examples/ --output ./results/batch_output/
+```
+
+**Options principales** :
+
+- `--input` ou `-i` : Dossier contenant les fichiers FITS (défaut: `./examples/`)
+- `--output` ou `-o` : Dossier de sortie (défaut: `./results/batch_output/`)
+- `--phase1` : Active la Phase 1 (érosion/dilatation globale) avant la Phase 2
+- `--kernel` ou `-k` : Taille du kernel d'érosion (défaut: `5`)
+- `--iterations` ou `-it` : Nombre d'itérations (défaut: `1`)
+- `--threshold` ou `-t` : Percentile pour le seuillage (défaut: `88`)
+
+#### Exemples d'utilisation
+
+```bash
+# Traitement simple avec paramètres par défaut
+python batch_processing.py
+
+# Spécifier les dossiers d'entrée et de sortie
+python batch_processing.py -i ./examples/ -o ./results/batch_output/
+
+# Activer la Phase 1 avant la Phase 2
+python batch_processing.py --phase1
+
+# Personnaliser tous les paramètres
+python batch_processing.py \
+  --input ./examples/ \
+  --output ./results/batch_output/ \
+  --phase1 \
+  --kernel 5 \
+  --iterations 1 \
+  --threshold 88
+```
+
+### Fichiers générés
+
+Pour chaque fichier FITS traité, le script génère :
+
+- **`<nom_fichier>_processed.png`** : Image traitée avec réduction d'étoiles
+
+Le script génère également :
+
+- **`batch_report.txt`** : Rapport détaillé contenant :
+  - Les paramètres utilisés
+  - Le nombre de fichiers traités
+  - Le nombre de succès et d'erreurs
+  - La liste détaillée de chaque fichier avec son statut
+
+### Paramètres par défaut
+
+Les paramètres par défaut sont **identiques à ceux de `erosion.py`** pour garantir la cohérence :
+
+- **Kernel** : `5x5` (même taille que dans `erosion.py`)
+- **Itérations** : `1` (même nombre que dans `erosion.py`)
+- **Seuil** : `88%` (même percentile que dans `erosion.py`)
+- **Phase 1** : Désactivée par défaut (comme dans `erosion.py` où elle est toujours exécutée)
+
+### Avantages
+
+- **Efficacité** : Traite plusieurs images sans intervention manuelle
+- **Cohérence** : Utilise exactement le même algorithme que `erosion.py`
+- **Flexibilité** : Paramètres ajustables pour chaque exécution
+- **Traçabilité** : Rapport détaillé pour suivre le traitement
+- **Robustesse** : Continue même si un fichier échoue
+
+### Limitations
+
+- **Traitement séquentiel** : Les fichiers sont traités un par un (pas de parallélisation)
+- **Même algorithme pour tous** : Tous les fichiers utilisent les mêmes paramètres
+- **Pas de prévisualisation** : Les résultats sont générés directement sans aperçu
+
+### Cas d'usage
+
+Le batch processing est particulièrement utile pour :
+
+- Traiter un grand nombre d'images astronomiques
+- Appliquer le même traitement à plusieurs observations
+- Automatiser le workflow de réduction d'étoiles
+- Générer des résultats pour une analyse comparative
+
 ## État du projet
 
 - [x] Phase 1 : Érosion et dilatation globale (ouverture morphologique)
@@ -243,6 +378,7 @@ Le comparateur détecte automatiquement les fichiers générés par `erosion.py`
 - [x] Phase 2 - Étape B : Réduction localisée
 - [x] Phase 2 - Étape C : Combinaison avec l'image originale
 - [x] Phase 3 : Comparateur Avant/Après (optionnel)
+- [x] Phase 3 : Batch Processing : Traitement en lot de plusieurs fichiers FITS (optionnel)
 
 ## Références
 
